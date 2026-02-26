@@ -1,38 +1,31 @@
-
 import Otp from "../models/otp.js";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import cloudinary from "../Database/cloudinary.js";
-import { Resend } from "resend";
-
+import * as SibApiV3Sdk from "@getbrevo/brevo";
+import axios from "axios";
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 export const uploadMiddleware = upload.single("profilePic");
 
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 // 🔐 Generate JWT
 const generateToken = (userId) => {
-  return jwt.sign(
-    { id: userId },
-    process.env.JWT_SECRET_KEY,
-    { expiresIn: "7d" }
-  );
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET_KEY, {
+    expiresIn: "7d",
+  });
 };
-
-
 
 // =============================
 // 📩 SEND EMAIL OTP
 // =============================
 export const sendEmailOtp = async (req, res) => {
   try {
-    const {  email } = req.body;
+    const { email } = req.body;
 
-   if (!email) {
+    if (!email) {
       return res.status(400).json({
         success: false,
         message: "Email is required",
@@ -50,20 +43,31 @@ export const sendEmailOtp = async (req, res) => {
       expiresAt,
     });
 
-      // ✅ Send Email using Resend
-    await resend.emails.send({
-      from: "Chat App <onboarding@resend.dev>", // change later to your verified domain
-      to: email,
-      subject: "Your OTP Code",
-      html: `
-        <div style="font-family: Arial, sans-serif;">
-          <h2>Your OTP Code</h2>
-          <p>Your OTP is:</p>
-          <h1 style="color:#14b8a6;">${otp}</h1>
-          <p>This OTP expires in 5 minutes.</p>
-        </div>
-      `,
-    });
+    // 🔥 BREVO API CALL (No SDK)
+    await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: {
+          name: "Chat App",
+          email: process.env.EMAIL_USER,
+        },
+        to: [{ email }],
+        subject: "Your OTP Code",
+        htmlContent: `
+          <div style="font-family: Arial">
+            <h2>Your OTP Code</h2>
+            <h1 style="color:#14b8a6;">${otp}</h1>
+            <p>This OTP expires in 5 minutes.</p>
+          </div>
+        `,
+      },
+      {
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -71,14 +75,13 @@ export const sendEmailOtp = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("Send OTP Error:", error);
+    console.log("Send OTP Error:", error.response?.data || error.message);
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.response?.data?.message || error.message,
     });
   }
 };
-
 
 // =============================
 // 🔐 VERIFY EMAIL OTP
@@ -107,7 +110,7 @@ export const verifyEmailOtp = async (req, res) => {
 
     let isNewUser = false;
 
-     if (!user) {
+    if (!user) {
       user = await User.create({
         email,
         isVerified: true,
@@ -125,7 +128,6 @@ export const verifyEmailOtp = async (req, res) => {
       user,
       isNewUser,
     });
-
   } catch (error) {
     console.log("Verify OTP Error:", error);
     res.status(500).json({
@@ -155,7 +157,7 @@ export const completeProfile = async (req, res) => {
           (error, result) => {
             if (error) reject(error);
             else resolve(result);
-          }
+          },
         );
 
         stream.end(req.file.buffer);
@@ -171,14 +173,13 @@ export const completeProfile = async (req, res) => {
         phone,
         profilePic: profilePicUrl,
       },
-      { new: true }
+      { new: true },
     );
 
     res.status(200).json({
       success: true,
       user,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -195,7 +196,6 @@ export const getProfile = async (req, res) => {
       success: true,
       user,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -224,7 +224,6 @@ export const updateProfile = async (req, res) => {
 
     // If new image uploaded
     if (req.file) {
-
       // Delete old image from cloudinary (optional advanced)
       if (user.profilePic) {
         const publicId = user.profilePic.split("/").pop().split(".")[0];
@@ -238,7 +237,7 @@ export const updateProfile = async (req, res) => {
           (error, result) => {
             if (error) reject(error);
             else resolve(result);
-          }
+          },
         );
         stream.end(req.file.buffer);
       });
@@ -252,7 +251,6 @@ export const updateProfile = async (req, res) => {
       success: true,
       user,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -306,7 +304,6 @@ export const savePushToken = async (req, res) => {
       success: true,
       message: "Push token saved",
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
