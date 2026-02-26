@@ -139,7 +139,7 @@ export const verifyEmailOtp = async (req, res) => {
 
 export const completeProfile = async (req, res) => {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, about } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({
@@ -171,6 +171,7 @@ export const completeProfile = async (req, res) => {
       {
         name,
         phone,
+        about,
         profilePic: profilePicUrl,
       },
       { new: true },

@@ -5,14 +5,9 @@ import fetch from "node-fetch";
 
 export const sendMessage = async (req, res, next) => {
   try {
-    const {
-      senderId,
-      receiverId,
-      groupId,
-      message,
-      messageType,
-      mediaUrl,
-    } = req.body;
+    const { receiverId, groupId, message, messageType, mediaUrl } = req.body;
+
+    const senderId = req.user.id;
 
     if (!senderId) {
       return res.status(400).json({
@@ -59,7 +54,7 @@ export const sendMessage = async (req, res, next) => {
     });
 
     let conversation = await Conversation.findOne({
-      participants: { $all: [senderId, receiverId] },
+      participants: { $all: [senderId, receiverId] }, 
     });
 
     if (!conversation) {
@@ -72,32 +67,35 @@ export const sendMessage = async (req, res, next) => {
     conversation.lastMessageType = messageType;
     conversation.lastMessageAt = new Date();
 
-    const currentUnread =
-      conversation.unreadCount.get(receiverId) || 0;
+    const currentUnread = conversation.unreadCount.get(receiverId) || 0;
 
     conversation.unreadCount.set(receiverId, currentUnread + 1);
     conversation.unreadCount.set(senderId, 0);
 
     await conversation.save();
-    const receiver = await User.findById(receiverId);
-const sender = await User.findById(senderId);
 
-if (receiver?.pushToken) {
-  await fetch("https://exp.host/--/api/v2/push/send", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      to: receiver.pushToken,
-      sound: "default",
-      title: sender?.name || "New Message",
-      body: message || "You have a new message",
-      data: { senderId },
-    }),
-  });
-}
+    const io = req.app.get("io");
+    io.to(receiverId.toString()).emit("conversation_updated");
+    io.to(senderId.toString()).emit("conversation_updated");
+    const receiver = await User.findById(receiverId);
+    const sender = await User.findById(senderId);
+
+    if (receiver?.pushToken) {
+      await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: receiver.pushToken,
+          sound: "default",
+          title: sender?.name || "New Message",
+          body: message || "You have a new message",
+          data: { senderId },
+        }),
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -158,7 +156,7 @@ export const markAsSeen = async (req, res, next) => {
       },
       {
         $set: {
-          [`unreadCount.${receiverId}`]: 0,
+          [`unreadCount.${senderId}`]: 0,
         },
       },
     );
@@ -177,13 +175,17 @@ export const markAsSeen = async (req, res, next) => {
 ============================= */
 export const getConversations = async (req, res, next) => {
   try {
-    const userId = req.user.id; // protectMiddleware must set this
+    const userId = req.user.id;
+    console.log("JWT User ID:", req.user.id);
 
     const conversations = await Conversation.find({
-      participants: userId,
+      participants: { $in: [userId] },
+      // 🔥 IMPORTANT FIX
     })
+
       .populate("participants", "name profilePic isOnline")
       .sort({ lastMessageAt: -1 });
+    console.log("All conversations:", conversations);
 
     res.status(200).json({
       success: true,

@@ -14,10 +14,10 @@ const userSchema = new mongoose.Schema(
     },
 
     phone: {
-  type: String,
-  unique: true,
-  sparse: true  // 🔥 VERY IMPORTANT
-},
+      type: String,
+      unique: true,
+      sparse: true, // 🔥 VERY IMPORTANT
+    },
     isVerified: {
       type: Boolean,
       default: true,

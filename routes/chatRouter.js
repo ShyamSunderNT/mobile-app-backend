@@ -10,9 +10,9 @@ const upload = multer({ storage });
 
 const router = express.Router();
 
-router.post("/send" , sendMessage)
-router.get("/history/:user1/:user2" , getChatHistory)
-router.put("/seen" , markAsSeen)
+router.post("/send" ,protect, sendMessage)
+router.get("/history/:user1/:user2" ,protect, getChatHistory)
+router.put("/seen" ,protect, markAsSeen)
 router.get("/conversations" , protect , getConversations )
 router.get("/group/id/:groupId" , protect,getGroupMessages)
 router.post("/group/send", protect,sendGroupMessage)
