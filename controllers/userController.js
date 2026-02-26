@@ -2,9 +2,9 @@
 import Otp from "../models/otp.js";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import multer from "multer";
 import cloudinary from "../Database/cloudinary.js";
+import { Resend } from "resend";
 
 
 const storage = multer.memoryStorage();
@@ -12,7 +12,7 @@ const upload = multer({ storage });
 export const uploadMiddleware = upload.single("profilePic");
 
 
-
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // 🔐 Generate JWT
 const generateToken = (userId) => {
@@ -50,23 +50,19 @@ export const sendEmailOtp = async (req, res) => {
       expiresAt,
     });
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      family: 4,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      // ✅ Send Email using Resend
+    await resend.emails.send({
+      from: "Chat App <onboarding@resend.dev>", // change later to your verified domain
       to: email,
-      subject: "ChatApp OTP",
-      html: `<h2>Your OTP is ${otp}</h2>`,
+      subject: "Your OTP Code",
+      html: `
+        <div style="font-family: Arial, sans-serif;">
+          <h2>Your OTP Code</h2>
+          <p>Your OTP is:</p>
+          <h1 style="color:#14b8a6;">${otp}</h1>
+          <p>This OTP expires in 5 minutes.</p>
+        </div>
+      `,
     });
 
     res.status(200).json({
