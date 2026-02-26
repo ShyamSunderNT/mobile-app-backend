@@ -15,7 +15,7 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
- console.log("URI:", process.env.MONGO_URI);
+ console.log("URI:", process.env.MONGODB_URL);
 
 
 
